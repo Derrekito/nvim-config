@@ -12,13 +12,23 @@ return {
       -- Overwrite <leader>pv with nvim-tree toggle
       { "<leader>pv", "<cmd>NvimTreeToggle<CR>", desc = "Toggle Project View (nvim-tree)" },
     },
-    config = function()
-      -- Disable netrw to avoid conflicts
+    -- Disable netrw before anything can source it (nvim-tree's advice: as
+    -- early as possible). `init` runs at startup before any plugin loads;
+    -- in `config` it ran too late to stop netrw cleanly.
+    init = function()
       vim.g.loaded_netrw = 1
       vim.g.loaded_netrwPlugin = 1
+    end,
+    config = function()
 
       -- Configure nvim-tree
       require("nvim-tree").setup({
+        -- netrw is already off (init above). hijack_netrw would only try to
+        -- clear netrw's FileExplorer autocmds, which then don't exist, and
+        -- leave E216 in v:errmsg. Opening a directory (`nvim .`) still shows
+        -- the tree via hijack_directories.
+        disable_netrw = true,
+        hijack_netrw = false,
         sort = {
           sorter = "case_sensitive",
         },

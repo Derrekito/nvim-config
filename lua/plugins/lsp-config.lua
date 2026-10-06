@@ -13,6 +13,7 @@ return {
           }
         }
       })
+      require("config.mason_tools").ensure_installed()
     end
   },
   {
@@ -27,8 +28,11 @@ return {
       -- The old `handlers` API was removed; per-server config goes through the
       -- native vim.lsp.config() API (Neovim 0.11+) below.
       require("mason-lspconfig").setup {
-        ensure_installed = { 'clangd', 'rust_analyzer', 'bashls', 'lua_ls', 'marksman', 'pylsp', 'jsonls', 'texlab' },
-        automatic_enable = true,
+        ensure_installed = { 'clangd', 'rust_analyzer', 'bashls', 'lua_ls', 'marksman', 'pylsp', 'jsonls', 'texlab', 'harper_ls' },
+        -- Enables an LSP for every Mason package that has one, including
+        -- the non-LSP tools from lua/config/mason_tools.lua. taplo's TOML
+        -- server is welcome; stylua's would just duplicate conform.
+        automatic_enable = { exclude = { "stylua" } },
       }
 
       -- Per-server overrides. These merge over the defaults that nvim-lspconfig
@@ -37,7 +41,6 @@ return {
         cmd = {
           "clangd",
           "--background-index",
-          "--suggest-missing-includes",
           "--clang-tidy",
           "--header-insertion=iwyu",
           "--header-insertion-decorators",
@@ -60,11 +63,26 @@ return {
             diagnostics = {
               globals = { 'vim', 'bufnr' },
             },
+            -- The Neovim runtime and plugin libraries come from lazydev.nvim
+            -- (below), which adds only what a file actually requires instead
+            -- of indexing every installed plugin up front.
             workspace = {
-              library = vim.api.nvim_get_runtime_file("", true), -- include nvim runtime files
-              checkThirdParty = false,                           -- avoid unecessary prompts?
+              checkThirdParty = false, -- no "configure your work environment" prompts
             },
             telemetry = { enable = false },
+          },
+        },
+      })
+
+      -- Grammar/spelling for prose only. Out of the box harper checks comments
+      -- in every programming language too, which is mostly noise in code.
+      vim.lsp.config("harper_ls", {
+        filetypes = { "markdown", "text", "gitcommit" },
+        settings = {
+          ["harper-ls"] = {
+            markdown = { IgnoreLinkTitle = true },
+            -- Your own words (names, jargon) go in via the code action
+            -- "Add to dictionary"; harper keeps them in its user dictionary.
           },
         },
       })
@@ -92,7 +110,7 @@ return {
   -- LuaSnip configuration
   {
     "L3MON4D3/LuaSnip",
-    lazy = false,
+    -- Loaded by nvim-cmp (completion.lua), which lists it as a dependency.
     dependencies = {
       "rafamadriz/friendly-snippets",
       "saadparwaiz1/cmp_luasnip",
@@ -104,36 +122,22 @@ return {
   -- nvim-lspconfig for setting up LSP servers
   {
     "neovim/nvim-lspconfig",
-    dependencies = {
-      "williamboman/mason.nvim",
-      "neovim/nvim-lspconfig",
-      "hrsh7th/cmp-nvim-lsp",
-      "hrsh7th/cmp-buffer",
-      "hrsh7th/cmp-path",
-      "hrsh7th/cmp-cmdline",
-      "hrsh7th/nvim-cmp",
-    },
+    dependencies = { "williamboman/mason.nvim" },
     lazy = false,
-    config = function()
-      vim.api.nvim_create_autocmd('LspAttach', {
-        callback = function(args)
-          local client = vim.lsp.get_client_by_id(args.data.client_id)
-          if not client then return end
-
-          -- Format-on-save is handled by conform.nvim (with lsp_fallback)
-          -- Removed duplicate BufWritePre hook that conflicted with conform
-        end,
-      })
-      -- LSP keybindings are set in init.lua LspAttach autocmd
-    end,
+    -- Only supplies the lsp/*.lua server defaults; nothing to set up.
+    -- Formatting is conform.nvim's job, keybindings live in the LspAttach
+    -- autocmd in lua/config/autocmds.lua.
   },
+  -- lua_ls knowledge of the Neovim API (vim.*, vim.uv, plugin modules) when
+  -- editing Lua. Successor to the archived neodev.nvim, by the same author.
   {
-    "folke/neodev.nvim", -- Add this
-    lazy = false,
-    config = function()
-      require("neodev").setup({
-        library = { plugins = {}, types = true },
-      })
-    end,
+    "folke/lazydev.nvim",
+    ft = "lua",
+    opts = {
+      library = {
+        -- libuv types, only for files that use vim.uv
+        { path = "${3rd}/luv/library", words = { "vim%.uv" } },
+      },
+    },
   },
 }

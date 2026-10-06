@@ -3,6 +3,8 @@ return {
   {
     'nvim-telescope/telescope.nvim',
     branch = 'master', -- 0.1.8 tag predates Neovim 0.12 (calls removed ts.ft_to_lang); track master
+    cmd = 'Telescope',
+    keys = { '<leader>ph', '<leader>pf', '<leader>en', '<leader>ep', '<leader>mg' },
 
     dependencies = {
       'nvim-lua/plenary.nvim',
@@ -30,9 +32,8 @@ return {
         }
       end)
       vim.keymap.set("n", "<leader>ep", function()
-        local data_path = vim.fn.stdpath("data")
         require('telescope.builtin').find_files {
-          cwd = vim.fs.joinpath(vim.fn.stdpath(data_path), "lazy")
+          cwd = vim.fs.joinpath(vim.fn.stdpath("data"), "lazy")
         }
       end)
 

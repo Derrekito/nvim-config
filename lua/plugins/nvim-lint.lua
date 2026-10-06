@@ -9,7 +9,10 @@ return {
     -- Configure linters by filetype
     -- NOTE: Only use linters that ADD value beyond LSP
     lint.linters_by_ft = {
-      -- C/C++ (cppcheck adds static analysis beyond clangd)
+      -- C/C++ (cppcheck adds static analysis beyond clangd).
+      -- cpplint intentionally dropped: it enforces Google style (attached
+      -- braces) which conflicts with our Allman/BSD ~/.clang-format.
+      -- clang-tidy runs inside clangd via --clang-tidy.
       c = { "cppcheck" },
       cpp = { "cppcheck" },
 
@@ -55,7 +58,7 @@ return {
       callback = function()
         -- Only lint if file exists and is not too large
         local max_filesize = 100 * 1024 -- 100 KB
-        local ok, stats = pcall(vim.loop.fs_stat, vim.api.nvim_buf_get_name(0))
+        local ok, stats = pcall(vim.uv.fs_stat, vim.api.nvim_buf_get_name(0))
         if ok and stats and stats.size < max_filesize then
           lint.try_lint()
         end
@@ -88,90 +91,37 @@ return {
       "-",
     }
 
-    -- mh_style: MISS_HIT style checker (not bundled with nvim-lint).
-    -- append_fname = true passes the buffer's real path so mh_style operates on
-    -- the file (it has no stdin mode) and can walk up to find miss_hit.cfg.
-    -- Without it, mh_style runs against cwd with no file and crashes / cannot
-    -- locate the config.
-    lint.linters.mh_style = {
-      cmd = "mh_style",
-      stdin = false,
-      append_fname = true,
-      args = { "--brief" },
-      stream = "stdout",
-      ignore_exitcode = true,
-      parser = function(output, bufnr)
-        local diagnostics = {}
-        local fname = vim.api.nvim_buf_get_name(bufnr)
-        for line in output:gmatch("[^\n]+") do
-          local f, lnum, col, msg = line:match("^(.-):(%d+):(%d+):%s*style:%s*(.*)$")
-          if f then
-            table.insert(diagnostics, {
-              source = "mh_style",
-              lnum = tonumber(lnum) - 1,
-              col = tonumber(col),
-              message = msg,
-              severity = vim.diagnostic.severity.WARN,
-            })
-          else
-            f, msg = line:match("^(.-): style:%s*(.*)$")
-            if f and not line:match("^MISS_HIT") then
-              table.insert(diagnostics, {
-                source = "mh_style",
-                lnum = 0,
-                col = 0,
-                message = msg,
-                severity = vim.diagnostic.severity.WARN,
-              })
-            end
-          end
-        end
-        return diagnostics
-      end,
-    }
+    -- MISS_HIT (MATLAB) linters; see lua/config/lint/miss_hit.lua.
+    local miss_hit = require("config.lint.miss_hit")
+    lint.linters.mh_style = miss_hit.mh_style
+    lint.linters.mh_lint = miss_hit.mh_lint
 
-    -- mh_lint: MISS_HIT semantic/code linter (not bundled with nvim-lint).
-    -- Output: file:line:col: check (severity): message [rule]
-    -- append_fname = true so it gets the real path (no stdin mode; needed for
-    -- miss_hit.cfg lookup).
-    lint.linters.mh_lint = {
-      cmd = "mh_lint",
-      stdin = false,
-      append_fname = true,
-      args = { "--brief" },
-      stream = "stdout",
-      ignore_exitcode = true,
-      parser = function(output, _)
-        local diagnostics = {}
-        local sev_map = {
-          ["high"] = vim.diagnostic.severity.ERROR,
-          ["medium"] = vim.diagnostic.severity.WARN,
-          ["low"] = vim.diagnostic.severity.INFO,
-        }
-        for line in output:gmatch("[^\n]+") do
-          if not line:match("^MISS_HIT") then
-            local lnum, col, level, msg = line:match("^.-:(%d+):(%d+):%s*%a+%s*%((%a+)%):%s*(.*)$")
-            if lnum then
-              table.insert(diagnostics, {
-                source = "mh_lint",
-                lnum = tonumber(lnum) - 1,
-                col = tonumber(col),
-                message = msg,
-                severity = sev_map[level] or vim.diagnostic.severity.WARN,
-              })
-            end
-          end
-        end
-        return diagnostics
-      end,
-    }
-
-    -- Markdownlint: customize rules
+    -- Markdownlint: customize rules.
+    -- NOTE: this replaces nvim-lint's default args entirely, so "--stdin" has
+    -- to be repeated here. Without it markdownlint gets no input, emits
+    -- nothing, and the linter silently reports zero diagnostics. A bare "--"
+    -- does not work: markdownlint then treats the rest as file paths.
     lint.linters.markdownlint.args = {
       "--disable",
       "MD013", -- Line length (handled by prettier)
       "MD041", -- First line in file should be a top-level heading
-      "--",
+      "--stdin",
     }
+
+    -- Drop linters whose executable isn't installed. nvim-lint raises an
+    -- ERROR notification on every try_lint for a missing binary, and the
+    -- autocmd above lints on every BufEnter, so one absent tool (hadolint,
+    -- gitlint, ...) means an error popup each time you enter such a buffer.
+    local function available(name)
+      local ok, linter = pcall(function() return lint.linters[name] end)
+      if not ok or not linter then return false end
+      if type(linter) == "function" then linter = linter() end
+      local cmd = linter.cmd
+      if type(cmd) == "function" then cmd = cmd() end
+      return type(cmd) == "string" and vim.fn.executable(cmd) == 1
+    end
+    for ft, names in pairs(lint.linters_by_ft) do
+      lint.linters_by_ft[ft] = vim.tbl_filter(available, names)
+    end
   end,
 }

@@ -1,15 +1,24 @@
 return {
   {
     "mfussenegger/nvim-dap",
+    keys = { "<leader>db", "<leader>dc", "<leader>dO", "<leader>di", "<leader>do" },
+    cmd = { "DapContinue", "DapToggleBreakpoint", "DapNew" },
     config = function()
       local dap = require("dap")
 
-      -- Python setup
-      dap.adapters.python = {
-        type = "executable",
-        command = "python", -- Adjust if your Python binary is different (e.g., "python3")
-        args = { "-m", "debugpy.adapter" },
-      }
+      -- Adapters are functions so they resolve when a session starts, not
+      -- when dap loads: Mason (lua/config/mason_tools.lua) may still be
+      -- installing them on a fresh machine.
+
+      -- Python: Mason's debugpy (its own venv), else a debugpy importable
+      -- from the system python.
+      dap.adapters.python = function(callback)
+        if vim.fn.executable("debugpy-adapter") == 1 then
+          callback({ type = "executable", command = "debugpy-adapter" })
+        else
+          callback({ type = "executable", command = "python", args = { "-m", "debugpy.adapter" } })
+        end
+      end
       dap.configurations.python = {
         {
           type = "python",
@@ -20,15 +29,21 @@ return {
         },
       }
 
-      -- C/C++ and CUDA setup (using cpptools)
-      dap.adapters.cppdbg = {
-        id = "cppdbg",
-        type = "executable",
-        command = vim.fn.expand("~/.vscode/extensions/ms-vscode.cpptools-*/debugAdapters/bin/OpenDebugAD7"), -- Adjust path
-        options = {
-          detached = false,
-        },
-      }
+      -- C/C++ and CUDA (cpptools): Mason's OpenDebugAD7, else a VS Code
+      -- install of the extension.
+      dap.adapters.cppdbg = function(callback)
+        local command = vim.fn.exepath("OpenDebugAD7")
+        if command == "" then
+          command = vim.fn.glob("~/.vscode/extensions/ms-vscode.cpptools-*/debugAdapters/bin/OpenDebugAD7", false, true)[1]
+            or "OpenDebugAD7"
+        end
+        callback({
+          id = "cppdbg",
+          type = "executable",
+          command = command,
+          options = { detached = false },
+        })
+      end
       dap.configurations.cpp = {
         {
           name = "Launch C/C++/CUDA",
@@ -53,18 +68,20 @@ return {
       dap.configurations.cuda = dap.configurations.cpp -- CUDA uses same debugger (gdb/lldb via cpptools)
 
       -- Keymaps
-      vim.keymap.set("n", "<leader>db", dap.toggle_breakpoint, { noremap = true, silent = true })
-      vim.keymap.set("n", "<leader>dc", dap.continue, { noremap = true, silent = true })
-      vim.keymap.set("n", "<leader>ds", dap.step_over, { noremap = true, silent = true }) -- Extra: step over
-      vim.keymap.set("n", "<leader>di", dap.step_into, { noremap = true, silent = true }) -- Extra: step into
-      vim.keymap.set("n", "<leader>do", dap.step_out, { noremap = true, silent = true })  -- Extra: step out
+      vim.keymap.set("n", "<leader>db", dap.toggle_breakpoint, { noremap = true, silent = true, desc = "DAP: Toggle breakpoint" })
+      vim.keymap.set("n", "<leader>dc", dap.continue, { noremap = true, silent = true, desc = "DAP: Continue" })
+      -- Step over is <leader>dO, not <leader>ds: LSP buffers bind
+      -- <leader>ds to document symbols (lua/config/autocmds.lua).
+      vim.keymap.set("n", "<leader>dO", dap.step_over, { noremap = true, silent = true, desc = "DAP: Step over" })
+      vim.keymap.set("n", "<leader>di", dap.step_into, { noremap = true, silent = true, desc = "DAP: Step into" })
+      vim.keymap.set("n", "<leader>do", dap.step_out, { noremap = true, silent = true, desc = "DAP: Step out" })
     end,
-    event = "BufReadPre",
   },
   {
     "rcarriga/nvim-dap-ui",
     name = "dap-ui",
-    dependencies = { "mfussenegger/nvim-dap" },
+    dependencies = { "mfussenegger/nvim-dap", "nvim-neotest/nvim-nio" },
+    keys = { "<leader>dt", "<leader>dr" },
     config = function()
       require("dapui").setup()
       vim.keymap.set("n", "<leader>dt", require("dapui").toggle, { noremap = true, silent = true })
@@ -72,6 +89,5 @@ return {
         { noremap = true, silent = true })
     end,
   },
-  { "nvim-neotest/nvim-nio" },
 }
 

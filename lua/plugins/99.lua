@@ -1,5 +1,9 @@
 return {
   "ThePrimeagen/99",
+  keys = {
+    { "<leader>9v", mode = "v" },
+    "<leader>9x", "<leader>9s", "<leader>9m", "<leader>9p",
+  },
   config = function()
     local _99 = require("99")
     _99.setup({

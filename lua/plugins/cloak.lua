@@ -1,5 +1,12 @@
 return {
   "laytan/cloak.nvim",
+  -- Before the buffer is shown, so secrets are never drawn uncloaked.
+  -- Same file names as file_pattern below.
+  event = {
+    "BufReadPre .env*", "BufNewFile .env*",
+    "BufReadPre wrangler.toml", "BufNewFile wrangler.toml",
+    "BufReadPre .dev.vars", "BufNewFile .dev.vars",
+  },
   config = function()
     require("cloak").setup({
       enabled = true,

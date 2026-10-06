@@ -1,5 +1,7 @@
 return {
   "stevearc/aerial.nvim",
+  cmd = { "AerialToggle", "AerialOpen", "AerialNavToggle" },
+  keys = { "<leader>o", "<leader>O", "<leader>po" },
   dependencies = {
     "nvim-treesitter/nvim-treesitter",
     "nvim-tree/nvim-web-devicons",
@@ -40,6 +42,9 @@ return {
     vim.keymap.set("n", "<leader>O", "<cmd>AerialToggle<cr>", { desc = "Outline + focus panel" })
     -- Fuzzy-search the current file's symbols via Telescope (cleaner than lsp_document_symbols).
     pcall(require("telescope").load_extension, "aerial")
-    vim.keymap.set("n", "<leader>fo", "<cmd>Telescope aerial<cr>", { desc = "Find symbol (outline)" })
+    -- <leader>po, alongside the other Telescope pickers (<leader>pf, <leader>ph).
+    -- Not <leader>fo: <leader>f formats, and a map that is also a prefix of
+    -- another waits out 'timeoutlen' on every use.
+    vim.keymap.set("n", "<leader>po", "<cmd>Telescope aerial<cr>", { desc = "Find symbol (outline)" })
   end,
 }

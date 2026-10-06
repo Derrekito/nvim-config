@@ -1,5 +1,8 @@
 return {
   'rose-pine/neovim',
+  -- The colorscheme: load first, before anything that defines highlights.
+  lazy = false,
+  priority = 1000,
   config = function()
     require('rose-pine').setup({
       variant = 'moon',

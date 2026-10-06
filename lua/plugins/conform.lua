@@ -3,12 +3,14 @@
 return {
   "stevearc/conform.nvim",
   event = { "BufWritePre" },
-  cmd = { "ConformInfo" },
+  -- Our own commands are listed too: they are defined in config(), which
+  -- otherwise doesn't run until the first write.
+  cmd = { "ConformInfo", "FormatToggle", "FormatStatus" },
   keys = {
     {
       "<leader>f",
       function()
-        require("conform").format({ async = true, lsp_fallback = true })
+        require("conform").format({ async = true, lsp_format = "fallback" })
       end,
       mode = "",
       desc = "Format buffer",
@@ -84,7 +86,7 @@ return {
         end
         return {
           timeout_ms = 500,
-          lsp_fallback = true, -- Use LSP formatter if conform formatter not available
+          lsp_format = "fallback", -- Use LSP formatter if conform formatter not available
           notify_on_error = true, -- Show error notification when formatter fails
         }
       end,
@@ -144,16 +146,21 @@ return {
 
     -- Command to check formatter status for current buffer
     vim.api.nvim_create_user_command("FormatStatus", function()
-      local formatters = require("conform").list_formatters_for_buffer()
-      if #formatters == 0 then
+      local conform = require("conform")
+      local names = conform.formatters_by_ft[vim.bo.filetype] or {}
+      if type(names) == "function" then
+        names = names(0)
+      end
+      names = vim.tbl_filter(function(n) return type(n) == "string" end, names)
+      if #names == 0 then
         vim.notify("No formatters available for this filetype", vim.log.levels.WARN)
         return
       end
 
       local status_lines = { "Formatters for " .. vim.bo.filetype .. ":" }
-      for _, formatter in ipairs(formatters) do
-        local available = formatter.available and "✓" or "✗"
-        table.insert(status_lines, string.format("  %s %s", available, formatter.name))
+      for _, name in ipairs(names) do
+        local info = conform.get_formatter_info(name, 0)
+        table.insert(status_lines, string.format("  %s %s", info.available and "✓" or "✗", name))
       end
       vim.notify(table.concat(status_lines, "\n"), vim.log.levels.INFO)
     end, {

@@ -18,8 +18,10 @@ return {
       callback = 1,
       continuous = 1,
       executable = 'latexmk',
+      -- No engine flag here: vimtex_compiler_latexmk_engines below picks it.
+      -- -shell-escape is for minted (the Beamer themes' code highlighting).
       options = {
-        '-pdf',
+        '-shell-escape',
         '-verbose',
         '-file-line-error',
         '-synctex=1',
@@ -66,12 +68,13 @@ return {
       styles = 1,
     }
 
-    -- Indent settings
-    vim.g.vimtex_indent_enabled = 1
+    -- No VimTeX indent; after/indent/tex.lua turns indenting off entirely.
+    vim.g.vimtex_indent_enabled = 0
 
-    -- Auto-save before compiling
+    -- LuaLaTeX by default (fontspec, and what every project here builds
+    -- with); a `% !TeX program = xelatex` magic comment still overrides it.
     vim.g.vimtex_compiler_latexmk_engines = {
-      _ = '-pdf',
+      _ = '-lualatex',
     }
 
     -- Disable some warnings

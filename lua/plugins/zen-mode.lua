@@ -1,5 +1,7 @@
 return {
   "folke/zen-mode.nvim",
+  cmd = "ZenMode",
+  keys = { "<leader>zz" },
   config = function()
     require("zen-mode").setup {
       -- your configuration comes here
@@ -62,7 +64,7 @@ return {
         },
       },
       -- callback where you can add custom code when the Zen window opens
-      on_open = function(win)
+      on_open = function(_)
         -- Store the current colorcolumn setting
         vim.g.zenmode_save_colorcolumn = vim.wo.colorcolumn
         -- Disable the colorcolumn
@@ -72,10 +74,6 @@ return {
         vim.g.zenmode_save_wrap = vim.wo.wrap
         -- Enable word wrap
         vim.wo.wrap = true
-
-        -- Keybindings to increase/decrease width
-        vim.api.nvim_buf_set_keymap(0, 'n', 'C-<left>', ':lua IncreaseZenWidth()<CR>', { noremap = true, silent = true })
-        vim.api.nvim_buf_set_keymap(0, 'n', 'C-<right>', ':lua DecreaseZenWidth()<CR>', { noremap = true, silent = true })
       end,
       -- callback where you can add custom code when the Zen window closes
       on_close = function()
@@ -83,10 +81,6 @@ return {
         vim.wo.colorcolumn = vim.g.zenmode_save_colorcolumn
         -- Restore the wordwrap setting
         vim.wo.wrap = vim.g.zenmode_save_wrap
-
-        -- Remove keybindings if necessary
-        vim.api.nvim_buf_del_keymap(0, 'n', 'C-<left>')
-        vim.api.nvim_buf_del_keymap(0, 'n', 'C-<right>')
       end, -- refer to the configuration section below
     }
 

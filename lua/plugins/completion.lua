@@ -23,6 +23,11 @@ return {
             require("luasnip").lsp_expand(args.body)
           end,
         },
+        -- Highlight the first item as soon as the menu opens, without
+        -- inserting it, so <CR>/<C-y> accept exactly what you see. With
+        -- nothing pre-selected <CR> only ever made a newline and dropped the
+        -- completion. <C-e> closes the menu when you want the newline.
+        completion = { completeopt = "menu,menuone,noinsert" },
         mapping = cmp.mapping.preset.insert({
           ["<C-b>"] = cmp.mapping.scroll_docs(-4),
           ["<C-f>"] = cmp.mapping.scroll_docs(4),
@@ -30,7 +35,8 @@ return {
           ["<C-e>"] = cmp.mapping.abort(),
           ["<CR>"] = cmp.mapping({
             i = function(fallback)
-              if cmp.visible() and cmp.get_active_entry() then
+              -- selected, not active: noinsert highlights without inserting
+              if cmp.visible() and cmp.get_selected_entry() then
                 cmp.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = false })
               else
                 fallback()
@@ -39,13 +45,38 @@ return {
             s = cmp.mapping.confirm({ select = true }),
             c = cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Replace, select = false }),
           }),
-          ["<Tab>"] = cmp.mapping.select_next_item(), -- Added for convenience
-          ["<S-Tab>"] = cmp.mapping.select_prev_item(),
+          ["<C-y>"] = cmp.mapping.confirm({ select = true }),
+          -- <Tab>/<S-Tab>: move through the menu while it is open; otherwise
+          -- jump between the placeholders of an expanded snippet (LSP
+          -- function completions arrive as `f(${1:a}, ${2:b})`); otherwise a
+          -- plain Tab.
+          ["<Tab>"] = cmp.mapping(function(fallback)
+            local luasnip = require("luasnip")
+            if cmp.visible() then
+              cmp.select_next_item()
+            elseif luasnip.locally_jumpable(1) then
+              luasnip.jump(1)
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+          ["<S-Tab>"] = cmp.mapping(function(fallback)
+            local luasnip = require("luasnip")
+            if cmp.visible() then
+              cmp.select_prev_item()
+            elseif luasnip.locally_jumpable(-1) then
+              luasnip.jump(-1)
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
         }),
         sources = cmp.config.sources({
+          -- require("...") module names while editing Neovim Lua; group 0
+          -- so it doesn't hide LSP results.
+          { name = "lazydev", group_index = 0 },
           { name = "nvim_lsp" },
           { name = "luasnip" },
-          { name = "orgmode" },
           { name = "path" },
           {
             name = "buffer",
@@ -62,11 +93,14 @@ return {
         }),
       })
       -- Command-line setups
+      -- Command lines keep nothing pre-selected: <CR> runs what you typed.
       cmp.setup.cmdline("/", {
+        completion = { completeopt = "menu,menuone,noselect" },
         mapping = cmp.mapping.preset.cmdline(),
         sources = { { name = "buffer" } },
       })
       cmp.setup.cmdline(":", {
+        completion = { completeopt = "menu,menuone,noselect" },
         mapping = cmp.mapping.preset.cmdline(),
         sources = cmp.config.sources({
           { name = "path" },
@@ -110,6 +144,11 @@ return {
           if not root or root == home or #root <= #home then
             root = vim.fs.dirname(fname)
           end
+          -- A note directly in $HOME has $HOME as its own directory, too.
+          -- Not calling on_dir skips marksman for that buffer.
+          if root == home or #root <= #home then
+            return
+          end
           on_dir(root)
         end,
       })
@@ -120,15 +159,9 @@ return {
       }
       for _, server in ipairs(servers) do
         if server == "clangd" then
+          -- cmd and root_markers live in lsp-config.lua.
           vim.lsp.config(server, {
             capabilities = capabilities,
-            cmd = {
-              "clangd",
-              "--background-index",
-              "--clang-tidy",
-              "--header-insertion=iwyu",
-              "--header-insertion-decorators",
-            },
             -- Disable clangd's LSP semantic tokens so treesitter highlighting
             -- always wins. clangd's semantic highlighting layers on top of
             -- treesitter only after it resolves a file (needs the right
@@ -144,11 +177,9 @@ return {
         end
       end
       vim.lsp.enable(servers)
-      -- LSP keybindings (gd, K, <leader>rn, etc.) are defined in init.lua's
-      -- LspAttach autocmd. They were duplicated here, and this autocmd's K
-      -- (plain hover, no float opts) raced with init.lua's wider/wrapping K —
-      -- whichever attached last won, so hover was intermittently too narrow.
-      -- Removed to make init.lua the single source of truth.
+      -- LSP keybindings (gd, K, <leader>rn, etc.) are defined in the
+      -- LspAttach autocmd in lua/config/autocmds.lua, the single source of
+      -- truth; a second copy here raced it and K was intermittently narrow.
     end,
   },
 }

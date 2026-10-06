@@ -8,6 +8,12 @@ return {
   opts = {
     completions = { lsp = { enabled = true } },
 
+    -- Unrendered (insert mode, or source mode via <leader>mt) shows the raw
+    -- text in full; rendered hides the markup entirely.
+    win_options = {
+      conceallevel = { default = 0, rendered = 3 },
+    },
+
     -- Render in visual modes too (insert stays raw: it's not listed, so the
     -- whole buffer shows plain markdown there — preferred for editing).
     render_modes = { "n", "c", "t", "v", "V", "\22" },
@@ -22,13 +28,15 @@ return {
     heading = {
       enabled = true,
       sign = false,
-      position = "overlay",
-      icons = {},
+      position = "inline",
+      icons = { "󰲡  ", "󰲣  ", "󰲥  ", "󰲧  ", "󰲩  ", "󰲫  " },
       width = "block",
-      left_pad = 0,
-      right_pad = 4,
-      min_width = 60,
-      border = false,
+      left_pad = 1,
+      right_pad = 3,
+      min_width = 0,
+      -- Thin half-block rule above/below the top two levels only.
+      border = { true, true, false, false, false, false },
+      border_virtual = true,
       backgrounds = {
         "RenderMarkdownH1Bg",
         "RenderMarkdownH2Bg",
@@ -51,14 +59,23 @@ return {
       enabled = true,
       sign = false,
       style = "full",
-      position = "left",
-      language_pad = 2,
+      position = "right",
+      -- snacks.image draws these as the diagram itself (plugins/snacks.lua);
+      -- a code-block frame around a concealed block just bleeds through.
+      disable = { "mermaid" },
+      language_icon = true,
+      language_name = true,
+      -- One quiet color for the language label instead of devicons' per-
+      -- language colors (python yellow, yaml red, ...).
+      highlight_language = "RenderMarkdownCodeInfo",
       width = "block",
-      left_pad = 1,
+      min_width = 60,
+      left_pad = 2,
       right_pad = 2,
       border = "thin",
       highlight = "RenderMarkdownCode",
       highlight_inline = "RenderMarkdownCodeInline",
+      inline_pad = 1,
     },
 
     bullet = {
@@ -71,7 +88,7 @@ return {
       enabled = true,
       position = "overlay",
       unchecked = { icon = "󰄱 ", highlight = "RenderMarkdownUnchecked" },
-      checked   = { icon = "󰱒 ", highlight = "RenderMarkdownChecked" },
+      checked   = { icon = "󰱒 ", highlight = "RenderMarkdownChecked", scope_highlight = "RenderMarkdownCheckedText" },
       custom = {
         todo = { raw = "[~]", rendered = "󰥔 ", highlight = "RenderMarkdownTodo" },
       },
@@ -88,7 +105,7 @@ return {
       enabled = true,
       style = "full",
       cell = "padded",
-      alignment_indicator = "━",
+      alignment_indicator = "┄",
       border = {
         "╭", "┬", "╮",
         "├", "┼", "┤",
@@ -113,7 +130,18 @@ return {
       image = "󰥶 ",
       hyperlink = "󰌹 ",
       highlight = "RenderMarkdownLink",
+      custom = {
+        web    = { pattern = "^http",                   icon = "󰖟 " },
+        github = { pattern = "github%.com",             icon = "󰊤 " },
+        youtube = { pattern = "youtube%.com",           icon = "󰗃 " },
+        wiki   = { pattern = "wikipedia%.org",          icon = "󰖬 " },
+      },
     },
+
+    -- Math is typeset by snacks.image (real LaTeX via pdflatex, shown as an
+    -- image in place of the source); the text approximation here would
+    -- render it a second time.
+    latex = { enabled = false },
 
     dash = {
       enabled = true,
@@ -123,27 +151,6 @@ return {
     },
   },
   config = function(_, opts)
-    local builtin_latex = require("render-markdown.handler.latex")
-    opts.custom_handlers = {
-      latex = {
-        parse = function(ctx)
-          local start_row, start_col = ctx.root:range()
-          local md_node = vim.treesitter.get_node({
-            bufnr = ctx.buf,
-            pos = { start_row, start_col },
-            lang = "markdown",
-            ignore_injections = true,
-          })
-          while md_node do
-            if md_node:type() == "fenced_code_block" then
-              return {}
-            end
-            md_node = md_node:parent()
-          end
-          return builtin_latex.parse(ctx)
-        end,
-      },
-    }
     require("render-markdown").setup(opts)
 
     local function apply_highlights()
@@ -152,28 +159,37 @@ return {
       -- Rose-pine moon palette (shared source of truth)
       local p = require("rose-pine-moon").palette
 
-      -- Heading bar backgrounds: hue-tinted darkenings of each accent
-      -- color, sitting visibly above the moon `base` (#232136).
-      hl("RenderMarkdownH1Bg", { bg = "#3c2d56" })  -- iris-tinted
-      hl("RenderMarkdownH2Bg", { bg = "#1f4250" })  -- foam-tinted
-      hl("RenderMarkdownH3Bg", { bg = "#523140" })  -- rose-tinted
-      hl("RenderMarkdownH4Bg", { bg = "#523f1f" })  -- gold-tinted
-      hl("RenderMarkdownH5Bg", { bg = "#1f3f50" })  -- pine-tinted
-      hl("RenderMarkdownH6Bg", { bg = "#2d3a4e" })  -- foam-muted
+      -- Heading bars: each accent blended ~18% into the base, so the bar is
+      -- tinted but quiet and the bold accent text carries the level.
+      local function blend(fg, bg, a)
+        local function ch(hex, i) return tonumber(hex:sub(i, i + 1), 16) end
+        local out = "#"
+        for _, i in ipairs({ 2, 4, 6 }) do
+          out = out .. string.format("%02x", math.floor(ch(fg, i) * a + ch(bg, i) * (1 - a) + 0.5))
+        end
+        return out
+      end
+      local accents = { p.iris, p.foam, p.rose, p.gold, p.pine, p.subtle }
+      for i, c in ipairs(accents) do
+        hl("RenderMarkdownH" .. i .. "Bg", { bg = blend(c, p.base, 0.18) })
+      end
 
       hl("RenderMarkdownH1", { fg = p.iris, bold = true })
       hl("RenderMarkdownH2", { fg = p.foam, bold = true })
       hl("RenderMarkdownH3", { fg = p.rose, bold = true })
       hl("RenderMarkdownH4", { fg = p.gold, bold = true })
       hl("RenderMarkdownH5", { fg = p.pine, bold = true })
-      hl("RenderMarkdownH6", { fg = p.foam, bold = true })
+      hl("RenderMarkdownH6", { fg = p.subtle, bold = true })
 
       hl("RenderMarkdownCode",       { bg = p.surface })
-      hl("RenderMarkdownCodeInline", { bg = p.overlay, fg = p.text })
+      hl("RenderMarkdownCodeBorder", { bg = p.surface })
+      hl("RenderMarkdownCodeInfo",   { fg = p.subtle, bg = p.surface, italic = true })
+      hl("RenderMarkdownCodeInline", { bg = p.overlay, fg = p.rose })
 
       hl("RenderMarkdownChecked",   { fg = p.foam })
       hl("RenderMarkdownUnchecked", { fg = p.muted })
       hl("RenderMarkdownTodo",      { fg = p.gold })
+      hl("RenderMarkdownCheckedText", { fg = p.muted, strikethrough = true })
 
       hl("RenderMarkdownQuote", { fg = p.iris })
       hl("RenderMarkdownLink",  { fg = p.foam, underline = true })

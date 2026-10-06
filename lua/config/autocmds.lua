@@ -77,8 +77,9 @@ autocmd('LspAttach', {
         vim.keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
         vim.keymap.set("n", "<leader>ca", vim.lsp.buf.code_action, opts)
         vim.keymap.set("n", "<leader>ws", vim.lsp.buf.workspace_symbol, opts)
+        -- Signature help is insert-mode only: normal-mode <leader>k stays the
+        -- global location-list `lnext` (config.keymaps) in LSP buffers too.
         vim.keymap.set("i", "<C-h>", function() vim.lsp.buf.signature_help(float) end, opts)
-        vim.keymap.set("n", "<leader>k", function() vim.lsp.buf.signature_help(float) end, opts)
         -- Browse symbols: current file (ds) vs. whole project (dS).
         vim.keymap.set("n", "<leader>ds", "<cmd>Telescope lsp_document_symbols<cr>", opts)
         vim.keymap.set("n", "<leader>dS", "<cmd>Telescope lsp_dynamic_workspace_symbols<cr>", opts)

@@ -2,8 +2,8 @@ return {
   {
     "ThePrimeagen/harpoon",
     branch = "harpoon2", -- Harpoon 2: editable menu, width scales with editor window
-    lazy = false,
     dependencies = { "nvim-lua/plenary.nvim" },
+    keys = { "<leader>a", "<C-e>", "<leader>1", "<leader>2", "<leader>3", "<leader>4" },
     config = function()
       local harpoon = require("harpoon")
       harpoon:setup({

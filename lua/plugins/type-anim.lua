@@ -1,9 +1,12 @@
 return {
   'Derrekito/nvim-type-anim',
-  lazy = false,
+  cmd = { "TypeAnim", "TypeAnimToggle", "TypeAnimKill" },
+  keys = { "<leader>ta" },
   config = function()
     require("type-anim").setup({
-      AnimToggleKey = "<space>",
+      -- Not bare <space>: that is <leader>, and binding it made every
+      -- leader press that paused start the animation.
+      AnimToggleKey = "<leader>ta",
       AnimKillKey = "<C-C>"
     })
   end
